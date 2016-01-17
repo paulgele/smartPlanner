@@ -1,4 +1,4 @@
 # smartPlanner
-Web-based tool for organizing and managing the users daily activities.
+Web-based tools for organizing and managing the users daily activities.
 
 .....
