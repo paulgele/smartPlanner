@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="ISO-8859-1">
+    <title>Automobile Maintenance Task Menu</title>
+    <!-- <LINK REL="StyleSheet" HREF="css/bootstrap-3.3.5-dist/bootstrap.css" TYPE="text/css">   -->
+</head>
+<body>
+	<form role="form" action="TheServlet" method="post">
+  		<div>	<!-- <div class="form-group">  -->
+  		<h1>
+			<label for="textAutoMaintenance">Automobile Maintenance Task Menu </label><br>
+		</h1>
+		<h2>
+			<label>These tasks can be scheduled repeatedly if a repeat interval is provided.  There will be an</label><br>
+			<label>opportunity to provide a repeat interval after the final task menu page. </label><br>
+			<!-- <input type="text" class="form-control" id="textLastName" name="LastName"><br>  -->
+		</h2>
+			<input type="checkbox" name="changeOil"                    >Change oil
+			<input type="hidden"   name="changeOil"  value="4"         > <!--months (estimate) (Usually 5,000 miles.  See your owners manual for details about your vehicle.)-->
+			<input type="hidden"   name="changeOil"  value="Change oil"><br>
+			
+			<input type="checkbox" name="flushCoolant"                       >Flush coolant
+			<input type="hidden"   name="flushCoolant"  value="24"           >
+			<input type="hidden"   name="flushCoolant"  value="Flush Coolant"><br>
+
+			<input type="checkbox" name="checkTirePressure"                              >Check tire pressure
+			<input type="hidden"   name="checkTirePressure"   value="4"                  >
+			<input type="hidden"   name="checkTirePressure"   value="Check tire pressure"><br>
+
+			<input type="checkbox" name="refillWiperFluid"                              >Refill wiper fluid
+			<input type="hidden"   name="refillWiperFluid"    value="3"                 >
+			<input type="hidden"   name="refillWiperFluid"    value="Refill wiper fluid"><br>
+<!--
+			<input type="checkbox" name="testBattery"                       >Test battery
+			<input type="hidden"   name="testBattery"   value="12"          >
+			<input type="hidden"   name="testBattery"   value="Test battery"><br>
+
+			<input type="checkbox" name="checkAirFilter"                           >Check air filter
+			<input type="hidden"   name="checkAirFilter"   value="6"               >
+			<input type="hidden"   name="checkAirFilter"   value="Check air filter"><br>
+
+			<input type="checkbox" name="changeFuelFilter"                             >Change fuel filter
+			<input type="hidden"   name="changeFuelFilter"   value="60"                >
+			<input type="hidden"   name="changeFuelFilter"   value="Change fuel filter"><br>
+
+			<input type="checkbox" name="checkTransFluidLevel"                                                  >Check automatic transmission fluid level
+			<input type="hidden"   name="checkTransFluidLevel"  value="6"                                       >
+			<input type="hidden"   name="checkTransFluidLevel"  value="Check automatic transmission fluid level"><br>
+
+			<input type="checkbox" name="checkBrakes"                                        >Check brake wear and fluid level
+			<input type="hidden"   name="checkBrakes"  value="12"                            >
+			<input type="hidden"   name="checkBrakes"  value="Check brake wear & fluid level"><br>
+
+			<input type="checkbox" name="inspectSteering"                                                       >Inspect steering system and lubricate as needed
+			<input type="hidden"   name="inspectSteering"  value="24"                                           >
+			<input type="hidden"   name="inspectSteering"  value="Inspect steering system & lubricate as needed"><br>
+-->
+		</div>
+		<div>	<!-- <div class="form-group">  -->
+			<input type="hidden" name="state" value="form02AutoMaintenance"><br>
+			<input type="submit" value="Submit"><br>
+		</div>
+	</form>
+</body>
+</html>
