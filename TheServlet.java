@@ -204,7 +204,7 @@ public class TheServlet extends HttpServlet {
 			Change water purifier filter(s)
 			Test smoke alarm batteries
 			Furnace and a/c service
-			Clean chimney flute
+			Clean chimney flue
 			**/			
 			
 
