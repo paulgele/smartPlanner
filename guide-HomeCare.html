@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="ISO-8859-1">
+    <title>Home Maintenance Task Menu</title>
+    <!-- <LINK REL="StyleSheet" HREF="css/bootstrap-3.3.5-dist/bootstrap.css" TYPE="text/css">   -->
+</head>
+<body>
+	<form role="form" action="TheServlet" method="post">
+  		<div>	<!-- <div class="form-group">  -->
+  		<h1>
+			<label for="textHomeMaintenance">Home Maintenance Task Menu </label><br>
+		</h1>
+		<h2>
+			<label>These tasks can be scheduled repeatedly if a repeat interval is provided.  There will be an</label><br>
+			<label>opportunity to provide a repeat interval after the final task menu page. </label><br>
+			<!-- <input type="text" class="form-control" id="textLastName" name="LastName"><br>  -->
+		</h2>	
+			<input type="checkbox" name="changeHVAC_Filter"                                       >Change Furnace/ac air filter
+			<input type="hidden"   name="changeHVAC_Filter"   value="6"                           >
+			<input type="hidden"   name="changeHVAC_Filter"   value="Change Furnace/ac air filter"><br>
+			
+			<input type="checkbox" name="cleanWindows"                        >Clean windows
+			<input type="hidden"   name="cleanWindows"   value="12"           >
+			<input type="hidden"   name="cleanWindows"   value="Clean windows"><br>
+			
+			<input type="checkbox" name="cleanLeadersGutters"                                        >Clean gutter and roof leaders	
+			<input type="hidden"   name="cleanLeadersGutters"   value="6"                            >
+			<input type="hidden"   name="cleanLeadersGutters"   value="Clean gutter and roof leaders"><br>
+			
+			<input type="checkbox" name="WaterHeater"                                   >Water heater maintenance
+			<input type="hidden"   name="WaterHeater"   value="12"                      >
+			<input type="hidden"   name="WaterHeater"   value="Water heater maintenance"><br>
+<!--			
+			<input type="checkbox" name="WaterFilters"                                          >Change water purifier filter(s)
+			<input type="hidden"   name="WaterFilters"   value="3"                              >
+			<input type="hidden"   name="WaterFilters"   value="Change water purifier filter(s)"><br>
+			
+			<input type="checkbox" name="SmokeAlarmBattery"                                     >Test smoke alarm batteries
+			<input type="hidden"   name="SmokeAlarmBattery"   value="3"                         >
+			<input type="hidden"   name="SmokeAlarmBattery"   value="Test smoke alarm batteries"><br>
+			
+			<input type="checkbox" name="HVAC_Service"                                  >Furnace and a/c service
+			<input type="hidden"   name="HVAC_Service"   value="6"                      >
+			<input type="hidden"   name="HVAC_Service"   value="Furnace and a/c service"><br>
+			
+			<input type="checkbox" name="cleanChimney"                              >Clean chimney flute
+			<input type="hidden"   name="cleanChimney"   value="12"                 >
+			<input type="hidden"   name="cleanChimney"   value="Clean chimney flute"><br>
+-->		
+		</div>
+		<div>	<!-- <div class="form-group">  -->
+			<input type="hidden" name="state" value="form01HomeMaintenance"><br>
+			<input type="submit" value="Submit"><br>
+		</div>
+	</form>
+</body>
+</html>
