@@ -32,7 +32,7 @@ public class TheServlet extends HttpServlet {
     List<taskBean> 			htmlList = 			new ArrayList<>();
     List<taskBeanSummary> 	taskList = 			new ArrayList<>();
     List<taskBeanSummary> 	eventList = 		new ArrayList<>();
-	List<taskBeanSummary> 	recurringTaskList = new ArrayList<>();  //Change this to a HashMap, to allow for deleting events later.
+    List<taskBeanSummary> 	recurringTaskList = new ArrayList<>();  //Change this to a HashMap, to allow for deleting events later.
     
 	/**
 	 * @see HttpServlet#doGet(HttpServletRequest request, HttpServletResponse response)
