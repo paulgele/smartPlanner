@@ -1,9 +1,14 @@
 package TheServlet;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.Set;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.sql.Connection;
+import java.sql.SQLException;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -28,11 +33,48 @@ public class TheServlet extends HttpServlet {
         // TODO Auto-generated constructor stub
     }
 
+    //Overhead fields
+	HttpSession session;
+	Connection connection;
+	String state = null;
+	String userID = null;
+	String passWd = null;
+	String newUserID;
+	String newPassWd;
+	boolean loginSuccess;
 	
-    List<taskBean> 			htmlList = 			new ArrayList<>();
-    List<taskBeanSummary> 	taskList = 			new ArrayList<>();
-    List<taskBeanSummary> 	eventList = 		new ArrayList<>();
-    List<taskBeanSummary> 	recurringTaskList = new ArrayList<>();  //Change this to a HashMap, to allow for deleting events later.
+	//SQL Query Strings
+	String useSmartPlannerDB 		= "USE smartplanner";
+	
+	//SQL Prepared Statement fields
+	String preparedSqlINSERT = 
+			"INSERT INTO tasktable (userID, taskName, recurrenceInterval, taskDate, startTime, recurrenceType)" + 
+					"VALUES (?,?,?,?,?,?)";
+	String preparedSqlTaskSELECT  = 
+			"SELECT userID, taskName, recurrenceInterval, taskDate, startTime, recurrenceType, iD FROM tasktable WHERE userID=?";
+	String preparedSqlLoginSELECT = "SELECT email, passd FROM logintable WHERE email=?";
+	String preparedSqlDeleteAllTasks4User 	= "DELETE FROM tasktable WHERE userID=?";
+	String preparedSqlCreateAcct = "INSERT INTO logintable (email, passd) VALUES (?,?)";
+	int iD; //SQL AUTO_GENERATED key
+	
+	//HTML/JSP files Strings
+	String url_renderCalendar		= "/WEB-INF/renderCalendar.jsp";
+	String url_guide_HomeCare		= "/WEB-INF/guide-HomeCare.html";
+	String url_guide_AutoCare		= "/WEB-INF/guide-AutoCare.html";
+	String url_guideSummary 		= "/WEB-INF/guideSummary.jsp";
+	String url_calendarDeleteForm	= "/WEB-INF/calendarDeleteForm.jsp";
+	String url_calendarMain			= "/WEB-INF/calendarMain.html";
+	String url_createAcct			= "/WEB-INF/createAcct.html";
+	String url_loginPage			= "/loginPage.jsp";
+	
+	
+	//Collections
+    List<taskBean> 				htmlList = 			new ArrayList<>();
+    List<taskBeanSummary> 		taskList = 			new ArrayList<>();
+    List<taskBeanSummary> 		taskListWithID = 	new ArrayList<>();
+    List<taskBeanSummary> 		eventList = 		new ArrayList<>();
+	List<taskBeanSummary> 		recurringTaskList = new ArrayList<>();  //Change this to a HashMap, to allow for deleting events later.
+	Map<String, String>			loginMap = 			new HashMap<>();
     
 	/**
 	 * @see HttpServlet#doGet(HttpServletRequest request, HttpServletResponse response)
@@ -45,13 +87,162 @@ public class TheServlet extends HttpServlet {
 	 */
 	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
 	
-		response.setContentType("text/html");
+		state = request.getParameter("state");
 		
-		String state = request.getParameter("state");
+		if(session==null) {
+			response.setContentType("text/html");
+			session = request.getSession();
+			
+			//Load database driver.
+			System.out.println("Create connection to database.....");
+			try{
+				Class.forName("com.mysql.jdbc.Driver");
+			} catch(ClassNotFoundException e) {
+				session.setAttribute("userID", null);
+				System.out.println("Set userID attribute = null...... ");
+				System.out.println(" ");
+				e.printStackTrace();
+			}//catch
+			
+			//Create connection to the database.
+			try {
+				connection = dbMgmt.openDB();
+				             dbMgmt.executeUpdate(connection, useSmartPlannerDB);
+			} catch (SQLException e) {
+				session.setAttribute("userID", null);
+				System.out.println("Set userID attribute = null...... ");
+				System.out.println(" ");
+				dbMgmt.printSqlTrace(e);
+			}//catch (SQLException e) 
+		}//session
 		
-		HttpSession session = request.getSession();
+		System.out.println("session Id= " + session.getId());
 		
-		if(state.equals("form01HomeMaintenance")) {
+			
+		if(state.equals("form04renderCalendar") || state.equals("form05editCalendarForm")) {
+			//***********************************************************************************************************************************************
+			//Read taskList collection from the database here, and then use method "recurringTaskBuilder.buildRecurringTasks()" to unroll the list before 
+			//rendering the calendar.  This allows the user to login and then go straight to the calendar.
+			
+//			loginMap = (Map<String, String>) session.getAttribute("LoginData");
+//			
+//			if(loginMap.get("loginSuccess").equals("true")) {
+//				getServletContext().getRequestDispatcher(url_calendarMain).forward(request, response);
+//			} else { 
+//				getServletContext().getRequestDispatcher(url_loginPage).forward(request, response);
+//			}
+			
+			taskListWithID.clear();
+			eventList.clear();
+				
+			try {//Read tasks from the database.
+				taskListWithID = dbMgmt.executeTaskSelect(connection, preparedSqlTaskSELECT, (String)session.getAttribute("userID"));
+			} catch (SQLException a) {
+				dbMgmt.printSqlTrace(a);
+			}//catch
+				
+			session.setAttribute("taskListWithID", taskListWithID);
+				
+			eventList = recurringTaskBuilder.buildRecurringTasks(taskListWithID);
+			session.setAttribute("eventList", eventList);
+
+			if(state.equals("form04renderCalendar")) {
+				System.out.println("form04renderCalendar:: String userID= " + userID);
+				getServletContext().getRequestDispatcher(url_renderCalendar).forward(request, response);
+			}
+			if(state.equals("form05editCalendarForm")) {
+				System.out.println("form05editCalendarForm:: String userID= " + userID);
+				getServletContext().getRequestDispatcher(url_calendarDeleteForm).forward(request, response);
+			}//
+		}//form04renderCalendar OR form05editCalendarForm
+		else if (state.equals("form000Main")) {
+
+			passWd = request.getParameter("passd");
+			userID = request.getParameter("emailAddress");
+			System.out.println("getParameter(emailAddress):: String userID= " + userID);
+			System.out.println(" ");
+			
+			loginMap.put("loginState", " "); //A map is required for the EL language code ${...} in the login JSP's JSTL code
+			session.setAttribute("LoginData", loginMap);
+
+			try {
+				//System.out.println("From form: userID= " +  userID + ", passWd= " + passWd);
+				System.out.println("form000Main:: String userID= " + userID);
+				loginSuccess = dbMgmt.executeLoginSelect(connection, preparedSqlLoginSELECT, userID, passWd);
+				//System.out.println("loginSuccess== " + loginSuccess);
+			} catch (SQLException a) {
+				session.setAttribute("userID", null);
+				System.out.println("form000Main:: Set userID attribute = null...... ");
+				dbMgmt.printSqlTrace(a);
+			}//catch
+				
+			if(loginSuccess==true) {
+				System.out.println("Login Success: Yes.  userID= " + userID);
+				loginMap.put("loginSuccess", "true"); //A map is required for the EL language code ${...} in the login JSP's JSTL code
+				session.setAttribute("LoginData", loginMap);
+				session.setAttribute("userID", userID);
+				System.out.println("loginSuccess==true:: Set userID attribute = " + userID);
+				getServletContext().getRequestDispatcher(url_calendarMain).forward(request, response);
+			} else { //loginSuccess==false
+				System.out.println("Login Success: No");
+				loginMap.put("loginSuccess", "false");//A map is required for the EL language code ${...} in the login JSP's JSTL code
+				session.setAttribute("LoginData", loginMap);
+				session.setAttribute("userID", null);
+				System.out.println("loginSuccess==false:: Set userID attribute = null...... ");
+				getServletContext().getRequestDispatcher(url_loginPage).forward(request, response);
+			}//else
+						
+		}//form000Main
+		else if(state.equals("form00GuideFirstPage")) {
+//			loginMap = (Map<String, String>) session.getAttribute("LoginData");			
+//			if(loginMap.get("loginSuccess").equals("true")) {
+//				getServletContext().getRequestDispatcher(url_calendarMain).forward(request, response);
+//			} else { 
+//				getServletContext().getRequestDispatcher(url_loginPage).forward(request, response);
+//			}
+			getServletContext().getRequestDispatcher(url_guide_HomeCare).forward(request, response);
+		}//form00GuideFirstPage
+		else if(state.equals("form07calendarMainPage")) {
+			getServletContext().getRequestDispatcher(url_calendarMain).forward(request, response);
+		}//form07calendarMainPage
+		else if(state.equals("form09createAcctForm")) {
+			System.out.println("Forward to login form...");
+			getServletContext().getRequestDispatcher(url_createAcct).forward(request, response);
+		}//form09createAcctForm
+		else if(state.equals("form08logOut")) {
+		    try {
+		        session.invalidate(); 
+		    } catch (java.lang.IllegalStateException ex)  {
+		        // do nothing or add you preferred logging method here
+		    }//catch
+			getServletContext().getRequestDispatcher(url_loginPage).forward(request, response);
+		}//form08logOut
+		else if(state.equals("form09createAcct")) {
+			newUserID = request.getParameter("newUserID");
+			newPassWd = request.getParameter("newPassWd");
+			loginMap.put("loginState", " "); //A map is required for the EL language code ${...} in the login JSP's JSTL code
+			session.setAttribute("LoginData", loginMap);
+			try  {
+				dbMgmt.executeCreateAcct(connection, newUserID, newPassWd, preparedSqlCreateAcct);
+			} catch (SQLException a) {
+				System.out.println("state==form09createAcct: SQLException occurred...");
+				dbMgmt.printSqlTrace(a);
+			}//catch
+			System.out.println("Submit login form...");
+			loginMap.put("loginState", "form09createAcct"); //A map is required for the EL language code ${...} in the login JSP's JSTL code
+			
+			Set<String> KS = loginMap.keySet();
+			Iterator<String> KSitr = KS.iterator();
+			String KSval;
+			while(KSitr.hasNext()) {
+				KSval = KSitr.next();
+				System.out.println("Key= " + KSval + ", Value= " + loginMap.get(KSval));
+			}//while
+			
+			session.setAttribute("LoginData", loginMap);
+			getServletContext().getRequestDispatcher(url_loginPage).forward(request, response);
+		}//form09createAcct
+		else if(state.equals("form01HomeMaintenance")) {
 			
 			String [] changeHVAC_Filter 	= new String [3]; 
 			String [] cleanWindows 			= new String [3];
@@ -62,6 +253,7 @@ public class TheServlet extends HttpServlet {
 			String [] HVAC_Service 			= new String [3];
 			String [] cleanChimney 			= new String [3];
 			
+			htmlList.clear();
 
 			changeHVAC_Filter = request.getParameterValues("changeHVAC_Filter");
 			if(changeHVAC_Filter[0].equals("on")){
@@ -114,8 +306,8 @@ public class TheServlet extends HttpServlet {
 			
 			session.setAttribute("htmlList", htmlList);
 			
-			String url_guide_AutoCare = "/guide-AutoCare.html";
 			getServletContext().getRequestDispatcher(url_guide_AutoCare).forward(request, response);
+			
 		}//if form01HomeMaintenance
 		else if(state.equals("form02AutoMaintenance")) {
 			
@@ -176,25 +368,25 @@ public class TheServlet extends HttpServlet {
 **/
 
 			session.setAttribute("htmlList", htmlList);
-			
-			String url_guideSummary = "/guideSummary.jsp";
+
 			getServletContext().getRequestDispatcher(url_guideSummary).forward(request, response);	
+			
 		}//if form02AutoMaintenance
-		else if(state.equals("form03guideSummary")) {
+		else if(state.equals("form03guideSummary")|| state.equals("form06deleteCalendarTasks")) {
 			
-			String [] changeHVAC_Filter_Summary 	= new String [5]; 
-			String [] cleanWindows_Summary 			= new String [5];
-			String [] cleanLeadersGutters_Summary 	= new String [5];
-			String [] WaterHeater_Summary 			= new String [5];
-			String [] WaterFilters_Summary 			= new String [5];
-			String [] SmokeAlarmBattery_Summary 	= new String [5];
-			String [] HVAC_Service_Summary 			= new String [5];
-			String [] cleanChimney_Summary 			= new String [5];
+			String [] changeHVAC_Filter_Summary 	= new String [6]; 
+			String [] cleanWindows_Summary 			= new String [6];
+			String [] cleanLeadersGutters_Summary 	= new String [6];
+			String [] WaterHeater_Summary 			= new String [6];
+			String [] WaterFilters_Summary 			= new String [6];
+			String [] SmokeAlarmBattery_Summary 	= new String [6];
+			String [] HVAC_Service_Summary 			= new String [6];
+			String [] cleanChimney_Summary 			= new String [6];
 			
-			String [] changeOil_Summary             = new String [5];
-			String [] flushCoolant_Summary          = new String [5];
-			String [] checkTirePressure_Summary     = new String [5];
-			String [] refillWiperFluid_Summary      = new String [5];
+			String [] changeOil_Summary             = new String [6];
+			String [] flushCoolant_Summary          = new String [6];
+			String [] checkTirePressure_Summary     = new String [6];
+			String [] refillWiperFluid_Summary      = new String [6];
 			
 			/**
 			X Change Furnace/ac air filter
@@ -204,16 +396,33 @@ public class TheServlet extends HttpServlet {
 			Change water purifier filter(s)
 			Test smoke alarm batteries
 			Furnace and a/c service
-			Clean chimney flue
+			Clean chimney flute
 			**/			
-			
 
+			taskList.clear();
+			
+			System.out.println("From guideSummary.jsp: userID= " + userID);
+			
+			try {
+				dbMgmt.executeTaskDelete(connection, (String)session.getAttribute("userID"), preparedSqlDeleteAllTasks4User); //Delete all tasks for current user from 'tasktable' to 
+																				//allow a replacement group of tasks to be stored.
+			} catch (SQLException e) {
+				dbMgmt.printSqlTrace(e);
+			}//catch (SQLException e) 
+
+			
 			try{
 				changeHVAC_Filter_Summary = request.getParameterValues("Change Furnace/ac air filter");
-				if(changeHVAC_Filter_Summary[0].equals("Change Furnace/ac air filter")) { 
+				if((changeHVAC_Filter_Summary[0].equals("Change Furnace/ac air filter")) & (changeHVAC_Filter_Summary.length==5)) {  //Came from 'guideSummary.jsp'
 					taskBeanSummary beanSummary = new taskBeanSummary(changeHVAC_Filter_Summary[0], Integer.parseInt(changeHVAC_Filter_Summary[1]), changeHVAC_Filter_Summary[2], changeHVAC_Filter_Summary[3], changeHVAC_Filter_Summary[4]);
 					taskList.add(beanSummary);
-				}//if changeHVAC_Filter_Summary
+					System.out.println("changeHVAC_Filter_Summary.length= " + changeHVAC_Filter_Summary.length + ".  Came from 'guideSummary.jsp'.");
+				}//if changeHVAC_Filter_Summary & length==5
+				else if ((changeHVAC_Filter_Summary[0].equals("Change Furnace/ac air filter")) & (changeHVAC_Filter_Summary.length==6)) { //Came from 'calendarDeleteForm.jsp' && 'Delete' box NOT checked.  length==7 when 'Delete' box checked.
+					taskBeanSummary beanSummary = new taskBeanSummary(changeHVAC_Filter_Summary[0], Integer.parseInt(changeHVAC_Filter_Summary[1]), changeHVAC_Filter_Summary[2], changeHVAC_Filter_Summary[3], changeHVAC_Filter_Summary[4], Integer.parseInt(changeHVAC_Filter_Summary[5]));
+					taskList.add(beanSummary);		
+					System.out.println("changeHVAC_Filter_Summary.length= " + changeHVAC_Filter_Summary.length + ".  Came from 'calendarDeleteForm.jsp' && 'Delete' box NOT checked.  length==7 when 'Delete' box checked..");
+				}//if changeHVAC_Filter_Summary & length==7
 				//out.println("<p>changeHVAC_Filter_Summary[0] = "   + changeHVAC_Filter_Summary[0]   + ", changeHVAC_Filter_Summary[1] = "   + changeHVAC_Filter_Summary[1]   + ", changeHVAC_Filter_Summary[2] = "   + changeHVAC_Filter_Summary[2]   + ", changeHVAC_Filter_Summary[3] = "   + changeHVAC_Filter_Summary[3]   + "</p><br>");
 			} catch(NullPointerException e) {
 				
@@ -221,10 +430,17 @@ public class TheServlet extends HttpServlet {
 
 			try{
 				cleanWindows_Summary = request.getParameterValues("Clean windows");
-				if(cleanWindows_Summary[0].equals("Clean windows")) {
+				System.out.println("cleanWindows_Summary.length= " + cleanWindows_Summary.length);
+				if((cleanWindows_Summary[0].equals("Clean windows")) & (cleanWindows_Summary.length==5)) {  ///Came from 'guideSummary.jsp'
 					taskBeanSummary beanSummary = new taskBeanSummary(cleanWindows_Summary[0], Integer.parseInt(cleanWindows_Summary[1]), cleanWindows_Summary[2], cleanWindows_Summary[3], cleanWindows_Summary[4]);
 					taskList.add(beanSummary);
+					System.out.println("cleanWindows_Summary.length= " + cleanWindows_Summary.length + ".  Came from 'guideSummary.jsp'.");
 				}//if 
+				else if((cleanWindows_Summary[0].equals("Clean windows")) & (cleanWindows_Summary.length==6)) {  //Came from 'calendarDeleteForm.jsp' && 'Delete' box NOT checked.  length==7 when 'Delete' box checked.
+					taskBeanSummary beanSummary = new taskBeanSummary(cleanWindows_Summary[0], Integer.parseInt(cleanWindows_Summary[1]), cleanWindows_Summary[2], cleanWindows_Summary[3], cleanWindows_Summary[4], Integer.parseInt(cleanWindows_Summary[5]));
+					taskList.add(beanSummary);
+					System.out.println("cleanWindows_Summary.length= " + cleanWindows_Summary.length + ".  Came from 'calendarDeleteForm.jsp' && 'Delete' box NOT checked.  length==7 when 'Delete' box checked..");
+				}//if
 				//out.println("<p>cleanWindows_Summary[0] = "        + cleanWindows_Summary[0]        + ", cleanWindows_Summary[1] = "        + cleanWindows_Summary[1]        + ", cleanWindows_Summary[2] = "        + cleanWindows_Summary[2]        + ", cleanWindows_Summary[3] ="         + cleanWindows_Summary[3]        + "</p><br>");
 			} catch(NullPointerException e) {
 	
@@ -232,9 +448,16 @@ public class TheServlet extends HttpServlet {
 			
 			try{
 				cleanLeadersGutters_Summary = request.getParameterValues("Clean gutter and roof leaders");
-				if(cleanLeadersGutters_Summary[0].equals("Clean gutter and roof leaders")) {
+				System.out.println("cleanLeadersGutters_Summary.length= " + cleanLeadersGutters_Summary.length);
+				if((cleanLeadersGutters_Summary[0].equals("Clean gutter and roof leaders")) & (cleanLeadersGutters_Summary.length==5)) {  //Came from 'guideSummary.jsp'
 					taskBeanSummary beanSummary = new taskBeanSummary(cleanLeadersGutters_Summary[0], Integer.parseInt(cleanLeadersGutters_Summary[1]), cleanLeadersGutters_Summary[2], cleanLeadersGutters_Summary[3], cleanLeadersGutters_Summary[4]);
 					taskList.add(beanSummary);
+					System.out.println("cleanLeadersGutters_Summary.length= " + cleanLeadersGutters_Summary.length + ".  Came from 'guideSummary.jsp'.");
+				}//if 
+				else if((cleanLeadersGutters_Summary[0].equals("Clean gutter and roof leaders")) & (cleanLeadersGutters_Summary.length==6)) {  //Came from 'calendarDeleteForm.jsp' && 'Delete' box NOT checked.  length==7 when 'Delete' box checked.
+					taskBeanSummary beanSummary = new taskBeanSummary(cleanLeadersGutters_Summary[0], Integer.parseInt(cleanLeadersGutters_Summary[1]), cleanLeadersGutters_Summary[2], cleanLeadersGutters_Summary[3], cleanLeadersGutters_Summary[4], Integer.parseInt(cleanLeadersGutters_Summary[5]));
+					taskList.add(beanSummary);
+					System.out.println("cleanLeadersGutters_Summary.length= " + cleanLeadersGutters_Summary.length + ".  Came from 'calendarDeleteForm.jsp' && 'Delete' box NOT checked.  length==7 when 'Delete' box checked..");
 				}//if 
 				//out.println("<p>cleanLeadersGutters_Summary[0] = " + cleanLeadersGutters_Summary[0] + ", cleanLeadersGutters_Summary[1] = " + cleanLeadersGutters_Summary[1] + ", cleanLeadersGutters_Summary[2] = " + cleanLeadersGutters_Summary[2] + ", cleanLeadersGutters_Summary[3] = " + cleanLeadersGutters_Summary[3] + "</p><br>");
 			} catch(NullPointerException e) {
@@ -244,8 +467,13 @@ public class TheServlet extends HttpServlet {
 
 			try{
 				WaterHeater_Summary = request.getParameterValues("Water heater maintenance");
-				if(WaterHeater_Summary[0].equals("Water heater maintenance")) {
+				System.out.println("WaterHeater_Summary.length= " + WaterHeater_Summary.length);
+				if((WaterHeater_Summary[0].equals("Water heater maintenance")) & (WaterHeater_Summary.length==5)) {  //Came from 'guideSummary.jsp'
 					taskBeanSummary beanSummary = new taskBeanSummary(WaterHeater_Summary[0], Integer.parseInt(WaterHeater_Summary[1]), WaterHeater_Summary[2], WaterHeater_Summary[3], WaterHeater_Summary[4]);
+					taskList.add(beanSummary);
+				}//if
+				else if((WaterHeater_Summary[0].equals("Water heater maintenance")) & (WaterHeater_Summary.length==6)) {  //Came from 'calendarDeleteForm.jsp' && 'Delete' box NOT checked.  length==7 when 'Delete' box checked.
+					taskBeanSummary beanSummary = new taskBeanSummary(WaterHeater_Summary[0], Integer.parseInt(WaterHeater_Summary[1]), WaterHeater_Summary[2], WaterHeater_Summary[3], WaterHeater_Summary[4], Integer.parseInt(WaterHeater_Summary[5]));
 					taskList.add(beanSummary);
 				}//if
 				//out.println("<p>WaterHeater_Summary[0] = "         + WaterHeater_Summary[0]         + ", WaterHeater_Summary[1] = "         + WaterHeater_Summary[1]         + ", WaterHeater_Summary[2] = "         + WaterHeater_Summary[2]         + ", WaterHeater_Summary[3] = "         + WaterHeater_Summary[3]         + "</p><br>");
@@ -255,18 +483,27 @@ public class TheServlet extends HttpServlet {
 		
 			
 			/**
-			XChange oil
-			XFlush Coolant
-			XCheck tire pressure
-			XRefill wiper fluid
-			...
-			...
+			X-Change oil
+			X-Flush Coolant
+			X-Check tire pressure
+			X-Refill wiper fluid
+			
+			-checkAirFilter 
+			-changeFuelFilter 
+			-checkTransFluidLevel 
+			-checkBrakes 
+			-inspectSteering 
 			**/
 			
 			try{
 				changeOil_Summary = request.getParameterValues("Change oil");
-				if(changeOil_Summary[0].equals("Change oil")) {
+				System.out.println("changeOil_Summary.length= " + changeOil_Summary.length);
+				if((changeOil_Summary[0].equals("Change oil")) & (changeOil_Summary.length==5)) { //Came from 'guideSummary.jsp'
 					taskBeanSummary beanSummary = new taskBeanSummary(changeOil_Summary[0], Integer.parseInt(changeOil_Summary[1]), changeOil_Summary[2], changeOil_Summary[3], changeOil_Summary[4]);
+					taskList.add(beanSummary);
+				}//if 
+				else if((changeOil_Summary[0].equals("Change oil")) & (changeOil_Summary.length==6)) { //Came from 'calendarDeleteForm.jsp' && 'Delete' box NOT checked.  length==7 when 'Delete' box checked.
+					taskBeanSummary beanSummary = new taskBeanSummary(changeOil_Summary[0], Integer.parseInt(changeOil_Summary[1]), changeOil_Summary[2], changeOil_Summary[3], changeOil_Summary[4], Integer.parseInt(changeOil_Summary[5]));
 					taskList.add(beanSummary);
 				}//if 
 				//out.println("<p>changeOil_Summary[0] = "         + changeOil_Summary[0]         + ", changeOil_Summary[1] = "         + changeOil_Summary[1]         + ", changeOil_Summary[2] = "         + changeOil_Summary[2]         + ", changeOil_Summary[3] ="          + changeOil_Summary[3]         + "</p><br>");
@@ -276,9 +513,16 @@ public class TheServlet extends HttpServlet {
 		
 			try{
 				flushCoolant_Summary = request.getParameterValues("Flush Coolant");
-				if(flushCoolant_Summary[0].equals("Flush Coolant")) {
+				System.out.println("flushCoolant_Summary.length= " + flushCoolant_Summary.length);
+				if((flushCoolant_Summary[0].equals("Flush Coolant")) & (flushCoolant_Summary.length==5)) {  ///Came from 'guideSummary.jsp'
 					taskBeanSummary beanSummary = new taskBeanSummary(flushCoolant_Summary[0], Integer.parseInt(flushCoolant_Summary[1]), flushCoolant_Summary[2], flushCoolant_Summary[3], flushCoolant_Summary[4]);
 					taskList.add(beanSummary);
+					System.out.println("flushCoolant_Summary.length= " + flushCoolant_Summary.length + ".  Came from 'guideSummary.jsp'.");
+				}//if 
+				else if((flushCoolant_Summary[0].equals("Flush Coolant")) & (flushCoolant_Summary.length==6)) {  //Came from 'calendarDeleteForm.jsp' && 'Delete' box NOT checked.  length==7 when 'Delete' box checked.
+					taskBeanSummary beanSummary = new taskBeanSummary(flushCoolant_Summary[0], Integer.parseInt(flushCoolant_Summary[1]), flushCoolant_Summary[2], flushCoolant_Summary[3], flushCoolant_Summary[4], Integer.parseInt(flushCoolant_Summary[5]));
+					taskList.add(beanSummary);
+					System.out.println("flushCoolant_Summary.length= " + flushCoolant_Summary.length + ".  Came from 'calendarDeleteForm.jsp' && 'Delete' box NOT checked.  length==7 when 'Delete' box checked..");
 				}//if 
 				//out.println("<p>flushCoolant_Summary[0] = "      + flushCoolant_Summary[0]      + ", flushCoolant_Summary[1] = "      + flushCoolant_Summary[1]      + ", flushCoolant_Summary[2] = "      + flushCoolant_Summary[2]      + ", flushCoolant_Summary[3] = "      + flushCoolant_Summary[3]      + "</p><br>");
 			} catch(NullPointerException e) {
@@ -287,8 +531,13 @@ public class TheServlet extends HttpServlet {
 
 			try{
 				checkTirePressure_Summary = request.getParameterValues("Check tire pressure");
-				if(checkTirePressure_Summary[0].equals("Check tire pressure")) {
+				System.out.println("checkTirePressure_Summary.length= " + checkTirePressure_Summary.length);
+				if((checkTirePressure_Summary[0].equals("Check tire pressure")) & (checkTirePressure_Summary.length==5)) {  //Came from 'guideSummary.jsp'
 					taskBeanSummary beanSummary = new taskBeanSummary(checkTirePressure_Summary[0], Integer.parseInt(checkTirePressure_Summary[1]), checkTirePressure_Summary[2], checkTirePressure_Summary[3], checkTirePressure_Summary[4]);
+					taskList.add(beanSummary);
+				}//if 
+				else if((checkTirePressure_Summary[0].equals("Check tire pressure")) & (checkTirePressure_Summary.length==6)) {  //Came from 'calendarDeleteForm.jsp' && 'Delete' box NOT checked.  length==7 when 'Delete' box checked.
+					taskBeanSummary beanSummary = new taskBeanSummary(checkTirePressure_Summary[0], Integer.parseInt(checkTirePressure_Summary[1]), checkTirePressure_Summary[2], checkTirePressure_Summary[3], checkTirePressure_Summary[4], Integer.parseInt(checkTirePressure_Summary[5]));
 					taskList.add(beanSummary);
 				}//if 
 				//out.println("<p>checkTirePressure_Summary[0] = " + checkTirePressure_Summary[0] + ", checkTirePressure_Summary[1] = " + checkTirePressure_Summary[1] + ", checkTirePressure_Summary[2] = " + checkTirePressure_Summary[2] + ", checkTirePressure_Summary[3] = " + checkTirePressure_Summary[3] + "</p><br>");
@@ -298,8 +547,13 @@ public class TheServlet extends HttpServlet {
 			
 			try{
 				refillWiperFluid_Summary = request.getParameterValues("Refill wiper fluid");
-				if(refillWiperFluid_Summary[0].equals("Refill wiper fluid")) {
+				System.out.println("refillWiperFluid_Summary.length= " + refillWiperFluid_Summary.length);
+				if((refillWiperFluid_Summary[0].equals("Refill wiper fluid")) & (refillWiperFluid_Summary.length==5)) {  //Came from 'guideSummary.jsp'
 					taskBeanSummary beanSummary = new taskBeanSummary(refillWiperFluid_Summary[0], Integer.parseInt(refillWiperFluid_Summary[1]), refillWiperFluid_Summary[2], refillWiperFluid_Summary[3], refillWiperFluid_Summary[4]);
+					taskList.add(beanSummary);
+				}//if 
+				else if((refillWiperFluid_Summary[0].equals("Refill wiper fluid")) & (refillWiperFluid_Summary.length==6)) {  //Came from 'calendarDeleteForm.jsp' && 'Delete' box NOT checked.  length==7 when 'Delete' box checked.
+					taskBeanSummary beanSummary = new taskBeanSummary(refillWiperFluid_Summary[0], Integer.parseInt(refillWiperFluid_Summary[1]), refillWiperFluid_Summary[2], refillWiperFluid_Summary[3], refillWiperFluid_Summary[4], Integer.parseInt(refillWiperFluid_Summary[4]));
 					taskList.add(beanSummary);
 				}//if 
 				//out.println("<p>refillWiperFluid_Summary[0] = "  + refillWiperFluid_Summary[0]  + ", WaterHeater_Summary[1] = "       + refillWiperFluid_Summary[1]  + ", refillWiperFluid_Summary[2] = "  + refillWiperFluid_Summary[2]  + ", refillWiperFluid_Summary[3] = "  + refillWiperFluid_Summary[3]  + "</p><br>");
@@ -308,16 +562,56 @@ public class TheServlet extends HttpServlet {
 			}//catch
 
 			
-			eventList = recurringTaskBuilder.buildRecurringTasks(taskList);
+			//*************************************************************************************************************
+			//Write taskList collection into the database here, before unrolling the tasks in method "recurringTaskBuilder.buildRecurringTasks()",
+			//to later allow removing all instances of any task, through a new jsp which has not yet been developed.  The new jsp will be
+			//a modified version of 'guideSummary.jsp'.
 			
-			session.setAttribute("eventListAttr", eventList);
+			Iterator <taskBeanSummary> itr_taskList = taskList.iterator();
+			taskBeanSummary beanSummary_inst = new taskBeanSummary();  //Scratch instance
+			taskListWithID.clear();
+			eventList.clear();
+			
+			System.out.println(" ");
+			System.out.println("session.getAttribute(\"userID\")==  " + session.getAttribute("userID"));
+			System.out.println("Tasks Created Through Wizard.....");
+			while (itr_taskList.hasNext()) {
+				try {
+					beanSummary_inst = itr_taskList.next();
 
-			String url_renderCalendar = "/renderCalendar.jsp";
+					System.out.println("beanSummary_inst.taskName= " + beanSummary_inst.getTaskName());
+					System.out.println("beanSummary_inst.taskDate= " + beanSummary_inst.getTaskDate());
+					System.out.println("beanSummary_inst.taskTime= " + beanSummary_inst.getTaskTime());
+					System.out.println("beanSummary_inst.recurrenceType= " + beanSummary_inst.getRecurrenceType());
+					System.out.println("beanSummary_inst.reschedulePeriod= " + beanSummary_inst.getReschedulePeriod());
+					System.out.println("beanSummary_inst.id= " + beanSummary_inst.getId());
+
+					
+					iD = dbMgmt.executeInsert(connection, preparedSqlINSERT, (String)session.getAttribute("userID"), beanSummary_inst.getTaskName(), beanSummary_inst.getReschedulePeriod(), beanSummary_inst.getTaskDate(), beanSummary_inst.getTaskTime(), beanSummary_inst.getRecurrenceType());
+					beanSummary_inst.setId(iD);
+					taskListWithID.add(beanSummary_inst);
+					System.out.println("New id= " + beanSummary_inst.getId());
+					System.out.println("taskName= " + beanSummary_inst.getTaskName());
+					System.out.println("getRecurrenceType= " + beanSummary_inst.getRecurrenceType());
+				}
+				catch (SQLException e) {
+						dbMgmt.printSqlTrace(e);
+				}
+			}//while
+			
+
+			session.setAttribute("taskListWithID", taskListWithID);
+			
+			eventList = recurringTaskBuilder.buildRecurringTasks(taskListWithID);			
+			session.setAttribute("eventList", eventList);
+
 			getServletContext().getRequestDispatcher(url_renderCalendar).forward(request, response);
 
-		}//if form03guideSummary
+		}//if form03guideSummary || form06deleteCalendarTasks
+
 
 	}//doPost
+
 
 	
 }//TheServlet
